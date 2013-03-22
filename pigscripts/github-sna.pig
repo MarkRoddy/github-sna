@@ -128,10 +128,10 @@ sorted_repo_correlcation = ORDER repo_correlcation BY correlation;
 
 
 -- remove any existing data
-rmf $OUTPUT_DIR;
+rmf $OUTPUT_DIR
 
 -- store the results
 -- STORE sorted_repo_correlcation
 STORE sorted_repo_correlcation
- INTO '$OUTPUT_PATH/sorted_repo_correlcation' 
+ INTO '$OUTPUT_DIR/sorted_repo_correlcation' 
 USING PigStorage(',');
