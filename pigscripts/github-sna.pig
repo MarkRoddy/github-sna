@@ -25,7 +25,7 @@ filtered_raw_events = FILTER raw_events
 user_repo_events = FOREACH filtered_raw_events GENERATE
     actor as user,
     (repository#'organization' is not null ?
-        repository#'organization' : repository#'name') AS repo_owner,
+        repository#'organization' : repository#'owner') AS repo_owner,
     repository#'name' AS repo_name,
     type AS event_type;
 
