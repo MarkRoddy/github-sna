@@ -108,13 +108,13 @@ repo_pair_agg = FOREACH(GROUP user_score_pairs_with_stats_measures BY (repo1, re
     repo_total_users2 = MAX(user_score_pairs_with_stats_measures.repo_total_users2);
 
     GENERATE FLATTEN(group) AS (repo1, repo2),
-        prod_sum AS prod_sum,
-        score1_sum AS score1_sum,
-        score2_sum AS score2_sum,
-        score1_normsqr AS score1_normsqr,
-        score2_normsqr AS score2_normsqr,
-        repo_total_users1 AS repo_total_users1,
-        repo_total_users2 AS repo_total_users2;
+        (float)prod_sum AS prod_sum,
+        (float)score1_sum AS score1_sum,
+        (float)score2_sum AS score2_sum,
+        (float)score1_normsqr AS score1_normsqr,
+        (float)score2_normsqr AS score2_normsqr,
+        (float)repo_total_users1 AS repo_total_users1,
+        (float)repo_total_users2 AS repo_total_users2;
 };        
 
 
@@ -124,7 +124,7 @@ repo_correlcation = FOREACH repo_pair_agg GENERATE
         (SQRT(((int)repo_count.total_repos) * score1_normsqr - score1_sum * score1_sum)
             * SQRT(((int)repo_count.total_repos) * score2_normsqr - score2_sum * score2_sum)) ) AS correlation;
     
-sorted_repo_correlcation = ORDER repo_correlcation BY correlation;
+sorted_repo_correlcation = ORDER repo_correlcation BY correlation PARALLEL 2;
 
 
 -- remove any existing data
