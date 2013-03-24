@@ -8,6 +8,9 @@
  
 %default INPUT_PATH '/home/mroddy/Desktop/Github-Events-2012-12-10-8.json'
 %default OUTPUT_DIR '/home/mroddy/Desktop/github-events-output'
+%default CORR_LIMIT '10000000'
+%default DECIMALS_TO_ROUND '4'
+%declare RND_MLTP 'POW(10, $DECIMALS_TO_ROUND)'
 
 /**
  * User-Defined Functions (UDFs)
@@ -15,6 +18,9 @@
 REGISTER '../udfs/python/githubsna.py' USING streaming_python AS githubsna;
 
 DEFINE POW org.apache.pig.piggybank.evaluation.math.POW;
+DEFINE EXP org.apache.pig.piggybank.evaluation.math.EXP;
+DEFINE FLOOR org.apache.pig.piggybank.evaluation.math.FLOOR;
+
 
 -- This is an example of loading up input data
 raw_events = LOAD '$INPUT_PATH'
@@ -118,20 +124,43 @@ repo_pair_agg = FOREACH(GROUP user_score_pairs_with_stats_measures BY (repo1, re
 };        
 
 
-repo_correlcation = FOREACH repo_pair_agg GENERATE
+repo_correlation = FOREACH repo_pair_agg GENERATE
     repo1, repo2,
     ((((int)repo_count.total_repos) * prod_sum - score1_sum * score2_sum) /
         (SQRT(((int)repo_count.total_repos) * score1_normsqr - score1_sum * score1_sum)
             * SQRT(((int)repo_count.total_repos) * score2_normsqr - score2_sum * score2_sum)) ) AS correlation;
-    
-sorted_repo_correlcation = ORDER repo_correlcation BY correlation PARALLEL 2;
 
+/* repo_correlation score rounded */
+repo_correlation_rounded = FOREACH repo_correlation GENERATE
+    repo1, repo2, correlation, (FLOOR($RND_MLTP * correlation) / $RND_MLTP) AS rounded_correlation;
+
+
+/* Distribution of individual scores */
+-- Cast score as string for more deterministic grouping, I hope
+repo_correlcation_as_str = FOREACH repo_correlation GENERATE
+    repo1, repo2, correlation, (chararray)correlation AS correlation_str;
+score_distribution = FOREACH (GROUP repo_correlcation_as_str BY (correlation_str)) {
+    GENERATE FLATTEN(group) AS correlation, COUNT(repo_correlcation_as_str);
+    };
+
+/* Distribution of scores when rounded to decimal place */
+rounded_repo_correlcation_as_str = FOREACH repo_correlation_rounded GENERATE
+    repo1, repo2, correlation, (chararray)rounded_correlation AS correlation_str;
+rounded_score_distribution = FOREACH (GROUP rounded_repo_correlcation_as_str BY (correlation_str)) {
+    GENERATE FLATTEN(group) AS (correlation), COUNT(rounded_repo_correlcation_as_str);
+    };
+
+
+
+sorted_repo_correlation = ORDER repo_correlation BY correlation DESC PARALLEL 4;
+
+limited_repo_correlation = LIMIT sorted_repo_correlation $CORR_LIMIT;
 
 -- remove any existing data
 rmf $OUTPUT_DIR
 
 -- store the results
--- STORE sorted_repo_correlcation
-STORE sorted_repo_correlcation
- INTO '$OUTPUT_DIR/sorted_repo_correlcation' 
-USING PigStorage(',');
+STORE sorted_repo_correlation INTO '$OUTPUT_DIR/sorted_repo_correlation' USING PigStorage(',');
+STORE score_distribution INTO '$OUTPUT_DIR/score_distribution' USING PigStorage(',');
+STORE rounded_score_distribution INTO '$OUTPUT_DIR/rounded_score_distribution' USING PigStorage(',');
+STORE limited_repo_correlation INTO '$OUTPUT_DIR/limited_repo_correlation' USING PigStorage(',');
